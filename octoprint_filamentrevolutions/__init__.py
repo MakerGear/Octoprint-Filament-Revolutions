@@ -68,6 +68,10 @@ class FilamentSensorsRevolutions(octoprint.plugin.StartupPlugin,
         return str(self._settings.get(["no_filament_gcode"])).splitlines()
 
     @property
+    def jammed_gcode(self):
+        return str(self._settings.get(["jammed_gcode"])).splitlines()
+
+    @property
     def runout_pause_print(self):
         return self._settings.get_boolean(["runout_pause_print"])
 
@@ -137,6 +141,9 @@ class FilamentSensorsRevolutions(octoprint.plugin.StartupPlugin,
 
     def runout_sensor_enabled(self):
         return self.runout_pin != -1
+
+    def jam_sensor_triggered(self):
+	return self.jam_triggered
 
     def jam_sensor_enabled(self):
         return self.jam_pin != -1
