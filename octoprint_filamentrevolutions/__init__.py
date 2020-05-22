@@ -164,12 +164,15 @@ class FilamentSensorsRevolutions(octoprint.plugin.StartupPlugin,
             if self.runout_sensor_enabled() and self.no_filament():
                 self._logger.info("Printing aborted: no filament detected!")
                 self._printer.cancel_print()
+                self._printer.commands("M117 Print CANCELLED due to filament runout detection, Tool0.")
             if self.jam_sensor_enabled() and self.jammed():
                 self._logger.info("Printing aborted: filament jammed!")
                 self._printer.cancel_print()
+                self._printer.commands("M117 Print CANCELLED due to filament runout detection, Tool1.")
+
 
         if event is Events.PRINT_RESUMED:
-            # TODO - add in a break here to pause again if filament isn't actually load (possibly optional)
+            # TODO - add in a break here to pause again if filament isn't actually loaded (possibly optional)
             self._printer.commands("M117 Print resumed after filament runout detection triggered pause.")
 
 
