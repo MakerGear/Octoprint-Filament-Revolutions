@@ -12,7 +12,8 @@ class FilamentSensorsRevolutions(octoprint.plugin.StartupPlugin,
                                  octoprint.plugin.EventHandlerPlugin,
                                  octoprint.plugin.TemplatePlugin,
                                  octoprint.plugin.SettingsPlugin,
-                                 octoprint.plugin.BlueprintPlugin):
+                                 octoprint.plugin.BlueprintPlugin,
+                                 octoprint.plugin.AssetPlugin):
 
     def initialize(self):
         self._logger.info(
@@ -34,6 +35,17 @@ class FilamentSensorsRevolutions(octoprint.plugin.StartupPlugin,
         if self.jam_sensor_enabled():
             status = "1" if self.jammed() else "0"
         return jsonify(status=status)
+
+    @octoprint.plugin.BlueprintPlugin.route("/status", methods=["GET"])
+    def api_get_status(self):
+        statusRunout = "-1"
+        statusJam = "-1"
+        if self.runout_sensor_enabled():
+            statusRunout = "0" if self.no_filament() else "1"
+        if self.jam_sensor_enabled():
+            statusJam = "1" if self.jammed() else "0"
+        return jsonify(statusRunout=statusRunout, statusJam=statusJam)
+
 
     @property
     def runout_pin(self):
@@ -155,7 +167,14 @@ class FilamentSensorsRevolutions(octoprint.plugin.StartupPlugin,
         return GPIO.input(self.jam_pin) != self.jam_switch
 
     def get_template_configs(self):
-        return [dict(type="settings", custom_bindings=False)]
+        return [dict(type="settings", custom_bindings=False),
+                dict(type="sidebar", custom_bindings=False)
+                ]
+
+    def get_assets(self):
+        return {
+            "js": ["js/filamentrevolutions.js"]
+        }
 
     def on_event(self, event, payload):
         # Early abort in case of out ot filament when start printing, as we
@@ -295,7 +314,7 @@ class FilamentSensorsRevolutions(octoprint.plugin.StartupPlugin,
 
 
 __plugin_name__ = "Filament Sensors Revolutions"
-__plugin_version__ = "1.0.0"
+# __plugin_version__ = "1.0.0" #for clarity/legacy, don't override the version in setup.py
 
 
 def __plugin_load__():
