@@ -1,20 +1,20 @@
 $(function() {
     function FilamentRevolutionsViewModel(parameters) {
         var self = this;
-        console.log("Trying to LOAD filament status at all...");
+        // console.log("Trying to LOAD filament status at all...");
 
-        // self.status_line = ko.observable();
-        // self.show_status = ko.observable(false);
-        self.filamentRunoutStatus = ko.observable();
-        self.filamentJamStatus = ko.observable(); //actually Tool1 filament runout but let's keep it consistent for the moment.
 
+        self.filamentRunoutStatus = ko.observable("No data yet.");
+        self.filamentJamStatus = ko.observable("No data yet."); //actually Tool1 filament runout but let's keep it consistent for the moment.
+        self.filamentLastMessage = ko.observable("No messages received yet.");
+        self.sensorStatusUrl = OctoPrint.getBlueprintUrl("filamentrevolutions") + "status";
 
 
         self.parseStatus = function(data) {
             //using this to deal with the confusing connascence of meaning on the status response values.  "Temporary"... - Josh, 5/26/2020
-            console.log("Trying to PARSE filament status.");
+            // console.log("Trying to PARSE filament status.");
             
-            console.log(data);
+            // console.log(data);
             if (data.statusRunout !== undefined){
                 if (data.statusRunout == 1){
                     self.filamentRunoutStatus("Loaded");
@@ -23,32 +23,37 @@ $(function() {
                 }
             }
             if (data.statusJam !== undefined){
-                if (data.statusRunout == 0){
-                    self.filamentRunoutStatus("Loaded");
+                if (data.statusJam == 0){
+                    self.filamentJamStatus("Loaded");
                 } else {
-                    self.filamentRunoutStatus("Not Loaded");
+                    self.filamentJamStatus("Not Loaded");
                 }
             }
-            self.show_status(true);
+            if (data.lastMessage !== undefined){
+                self.filamentLastMessage(data.lastMessage);
+            }
+
         }
 
-        self.initialMessage = function(data) {
-            // self.status_line(data.status_line);
-            self.parseStatus(data);
 
-            // self.show_status(data.status_line ? true : false);
+        self.requestSensorData = function() {
 
-        };
+            OctoPrint.get(self.sensorStatusUrl)
+                .done(self.parseStatus)
+                ;
+
+
+        }
+
 
         self.onStartupComplete = function() {
-            // WebApp started, get message if any
-            console.log("Trying to GET filament status.");
-            $.ajax({
-                url: API_BASEURL + "plugin/filamentrevolutions/status",
-                type: "GET",
-                dataType: "json",
-                success: self.parseStatus
-            });
+            // console.log(OctoPrintClient.getBaseUrl());
+            // console.log("Trying to GET filament status.");
+
+            self.requestSensorData();
+            // OctoPrint.get(self.sensorStatusUrl)
+            //     .done(self.parseStatus)
+            //     ;
         }
 
 

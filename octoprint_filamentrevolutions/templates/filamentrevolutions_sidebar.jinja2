@@ -1,0 +1,10 @@
+<div id="filamentrevolutions_sidebar" data-bind="visible: true">
+
+<a href="#" data-bind="click: function() { $root.requestSensorData(); }" title="Refresh filament sensor data.">
+        <i class="fa fa-refresh"></i>
+    </a>
+	Tool 0:<span data-bind="text: filamentRunoutStatus"></span> | Tool 1:<span data-bind="text: filamentJamStatus"></span>
+	<br>
+	<i class="icon-comment"></i> Last Message: <span data-bind="text: filamentLastMessage"></span>
+
+</div>
