@@ -25,11 +25,13 @@ class FilamentSensorsRevolutions(octoprint.plugin.StartupPlugin,
         self.lastMessage = ""
         self.printPausedByPlugin = False
         # self.printStartState = {"runout":None,
-                                # "jammed":None}
+        #                         "jammed":None}
+        self.lockStartState = True
+        self.runoutIgnored = False
+        self.jamIgnored = False
 
     def send_ui_feedback(self, message):
-        # self._plugin_manager.send_plugin_message("mgsetup", dict(ip = self.ip))
-        sendAsM117 = True
+        sendAsM117 = False
         sendAsMessage = True
         self.lastMessage = str(message).strip()
         statusRunout = "-1"
@@ -179,7 +181,7 @@ class FilamentSensorsRevolutions(octoprint.plugin.StartupPlugin,
         return self.runout_pin != -1
 
     def jam_sensor_triggered(self):
-	return self.jam_triggered
+        return self.jam_triggered
 
     def jam_sensor_enabled(self):
         return self.jam_pin != -1
@@ -206,15 +208,37 @@ class FilamentSensorsRevolutions(octoprint.plugin.StartupPlugin,
         if event is Events.PRINT_STARTED:
             self.printPausedByPlugin = False
             if self.runout_sensor_enabled() and self.no_filament():
-                self._logger.info("Printing aborted: no filament detected!")
-                self._printer.cancel_print()
-                # self._printer.commands("M117 Print CANCELLED due to filament runout detection, Tool0.")
-                self.send_ui_feedback("Print CANCELLED due to filament runout detection, Tool0.")
+
+                if self.lockStartState:
+                    self.runoutIgnored = True
+                    self.send_ui_feedback("Print started with no filament detected on Tool0, ignoring this sensor for this print.")
+                else:
+                    self._logger.info("Printing aborted: no filament detected!")
+                    self._printer.cancel_print()
+                    # self._printer.commands("M117 Print CANCELLED due to filament runout detection, Tool0.")
+                    self.send_ui_feedback("Print CANCELLED due to filament runout detection, Tool0.")
+
+
+
             if self.jam_sensor_enabled() and self.jammed():
-                self._logger.info("Printing aborted: filament jammed!")
-                self._printer.cancel_print()
-                # self._printer.commands("M117 Print CANCELLED due to filament runout detection, Tool1.")
-                self.send_ui_feedback("Print CANCELLED due to filament runout detection, Tool1.")
+
+                if self.lockStartState:
+                    self.jamIgnored = True
+                    self.send_ui_feedback("Print started with no filament detected on Tool1, ignoring this sensor for this print.")
+
+                else:
+                    self._logger.info("Printing aborted: filament jammed!")
+                    self._printer.cancel_print()
+                    # self._printer.commands("M117 Print CANCELLED due to filament runout detection, Tool1.")
+                    self.send_ui_feedback("Print CANCELLED due to filament runout detection, Tool1.")
+
+
+            # if self.runout_sensor_enabled():
+            #     self.printStartState["runout"] = self.no_filament()
+            # if self.jam_sensor_enabled():
+            #     self.printStartState["jammed"] = self.jammed()
+
+
 
 
         if event is Events.PRINT_RESUMED:
@@ -223,6 +247,32 @@ class FilamentSensorsRevolutions(octoprint.plugin.StartupPlugin,
             if self.printPausedByPlugin:
                 self.send_ui_feedback("Print resumed after pause triggered by filament runout detection.")
                 self.printPausedByPlugin = False
+                if self.runout_sensor_enabled() and self.no_filament():
+
+                    if self.lockStartState and self.runoutIgnored:
+                        # self.runoutIgnored = True
+                        self.send_ui_feedback("Print resumed with no filament detected on Tool0, ignoring this sensor for this print as originally detected.")
+                    else:
+                        self._logger.info("Printing paused: no filament detected on resume.")
+                        self._printer.pause_print()
+                        # self._printer.commands("M117 Print CANCELLED due to filament runout detection, Tool0.")
+                        self.send_ui_feedback("Print paused due to filament runout detection, Tool0, while trying to resume.")
+                        self.printPausedByPlugin = True
+
+
+
+                if self.jam_sensor_enabled() and self.jammed():
+
+                    if self.lockStartState and self.jamIgnored:
+                        # self.jamIgnored = True
+                        self.send_ui_feedback("Print resumed with no filament detected on Tool1, ignoring this sensor for this print as originally detected.")
+
+                    else:
+                        self._logger.info("Printing paused: filament jammed!")
+                        self._printer.pause_print()
+                        # self._printer.commands("M117 Print CANCELLED due to filament runout detection, Tool1.")
+                        self.send_ui_feedback("Print paused due to filament runout detection, Tool1, while trying to resume.")
+                        self.printPausedByPlugin = True
 
 
         # Enable sensor
@@ -284,15 +334,18 @@ class FilamentSensorsRevolutions(octoprint.plugin.StartupPlugin,
             else:
                 # Need to resend GCODE (old default) so reset trigger
                 self.runout_triggered = 0
-            if self.runout_pause_print:
-                self._logger.info("Pausing print.")
-                # self._printer.commands("M117 Print paused due to filament runout detection, Tool0.")
-                self.send_ui_feedback("Print paused due to filament runout detection, Tool0.")
-                self._printer.pause_print()
-                self.printPausedByPlugin = True
-            if self.no_filament_gcode:
-                self._logger.info("Sending out of filament GCODE")
-                self._printer.commands(self.no_filament_gcode)
+            if not self.runoutIgnored:
+                if self.runout_pause_print:
+                    self._logger.info("Pausing print.")
+                    # self._printer.commands("M117 Print paused due to filament runout detection, Tool0.")
+                    self.send_ui_feedback("Print paused due to filament runout detection, Tool0.")
+                    self._printer.pause_print()
+                    self.printPausedByPlugin = True
+                if self.no_filament_gcode:
+                    self._logger.info("Sending out of filament GCODE")
+                    self._printer.commands(self.no_filament_gcode)
+            else:
+                self.send_ui_feedback("Filament runout on Tool0 ignored based on print start state.")
         else:
             self._logger.info("Filament detected!")
             if not self.runout_pause_print:
@@ -316,15 +369,18 @@ class FilamentSensorsRevolutions(octoprint.plugin.StartupPlugin,
             else:
                 # Need to resend GCODE (old default) so reset trigger
                 self.jam_triggered = 0
-            if self.jammed_pause_print:
-                self._logger.info("Pausing print.")
-                # self._printer.commands("M117 Print paused due to filament runout detection, Tool1.")
-                self.send_ui_feedback("Print paused due to filament runout detection, Tool1.")
-                self._printer.pause_print()
-                self.printPausedByPlugin = True
-            if self.jammed_gcode:
-                self._logger.info("Sending jammed GCODE")
-                self._printer.commands(self.jammed_gcode)
+            if not self.jamIgnored:
+                if self.jammed_pause_print:
+                    self._logger.info("Pausing print.")
+                    # self._printer.commands("M117 Print paused due to filament runout detection, Tool1.")
+                    self.send_ui_feedback("Print paused due to filament runout detection, Tool1.")
+                    self._printer.pause_print()
+                    self.printPausedByPlugin = True
+                if self.jammed_gcode:
+                    self._logger.info("Sending jammed GCODE")
+                    self._printer.commands(self.jammed_gcode)
+            else:
+                self.send_ui_feedback("Filament runout on Tool1 ignored based on print start state.")
         else:
             self._logger.info("Filament not jammed!")
             if not self.jammed_pause_print:
